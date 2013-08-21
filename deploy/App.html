@@ -14,14 +14,31 @@
     extend: 'Rally.app.App',
     componentCls: 'app',
     launch: function() {
-      return this.getBlockedStories();
+        var timeboxScope = this.getContext().getTimeboxScope();
+        if(timeboxScope) {
+            var record = timeboxScope.getRecord();
+            var name = record.get('Name');
+            console.log("timebox",record);
+            return this.getBlockedStories(record);
+        } else {
+            return this.getBlockedStories();
+        }
     },
-    getBlockedStories: function() {
+    onTimeboxScopeChange: function(newTimeboxScope) {
+        this.callParent(arguments);
+        
+        if(newTimeboxScope) {
+            var record = newTimeboxScope.getRecord();
+            return this.getBlockedStories(record);
+        }
+    },
+    getBlockedStories: function(iteration) {
+        console.log('iteration',iteration);
       var storyStore;
       return storyStore = Ext.create('Rally.data.WsapiDataStore', {
         autoLoad: true,
         model: 'HierarchicalRequirement',
-        fetch: ['Name', 'RevisionHistory', 'FormattedID', 'ObjectID', 'BlockedReason', 'DirectChildrenCount'],
+        fetch: ['Name', 'FormattedID', 'ObjectID', 'BlockedReason', 'DirectChildrenCount', 'Blocker,CreationDate,BlockedBy'],
         filters: [
           {
             property: 'Blocked',
@@ -31,48 +48,40 @@
             property: 'DirectChildrenCount',
             operator: '=',
             value: 0
-          }
+          }, ( !_.isUndefined(iteration) && !_.isNull(iteration) ? 
+            { property : 'Iteration.Name', operator: '=', value : iteration.get("Name") } : {}
+        )
         ],
         listeners: {
           load: function(store, storyRecords) {
+            var sortFn;
+            sortFn = function(o1, o2) {
+              var date1, date2, getDate;
+              getDate = function(o) {
+                return Ext.Date.parse(o.data.Blocker.CreationDate, "c");
+              };
+              date1 = getDate(o1);
+              date2 = getDate(o2);
+              if (date1 < date2) {
+                return -1;
+              }
+              if (date1 === date2) {
+                return 0;
+              }
+              if (date1 > date2) {
+                return 1;
+              }
+            };
+            storyRecords.sort(sortFn);
             return _.each(storyRecords, function(storyRecord) {
-              return Rally.data.ModelFactory.getModel({
-                type: 'RevisionHistory',
-                scope: this,
-                success: function(model) {
-                  return this._onModelLoaded(model, storyRecord);
-                }
-              });
+              return this._addStoryPanel(storyRecord);
             }, this);
           },
           scope: this
         }
       });
     },
-    _onModelLoaded: function(model, storyRecord) {
-      return model.load(Rally.util.Ref.getOidFromRef(storyRecord.data.RevisionHistory._ref), {
-        scope: this,
-        success: function(revisionHistoryRecord) {
-          return this._onRevisionHistoryLoaded(revisionHistoryRecord, storyRecord);
-        }
-      });
-    },
-    _onRevisionHistoryLoaded: function(revisionHistoryRecord, storyRecord) {
-      return revisionHistoryRecord.getCollection('Revisions').load({
-        fetch: ['RevisionNumber', 'CreationDate', 'User', 'Description'],
-        scope: this,
-        callback: function(revisions) {
-          var blockedRevision;
-          blockedRevision = _.find(revisions, function(revision) {
-            return revision.data.Description.indexOf("BLOCKED changed from [false] to [true]") !== -1;
-          });
-          if (blockedRevision !== void 0) {
-            return this._addStoryPanel(storyRecord, blockedRevision);
-          }
-        }
-      });
-    },
-    _addStoryPanel: function(storyRecord, blockedRevision) {
+    _addStoryPanel: function(storyRecord) {
       var storyPanel, storyTemplate;
       storyTemplate = new Ext.Template('<span style="float:left;padding-left:5px;margin-top:10px;margin-bottom:5px">\
         <b><a href={ID_URL} target="_parent">{formattedID}</a> {storyName}</b> <br> \
@@ -89,14 +98,15 @@
           ID_URL: Rally.nav.Manager.getDetailUrl(storyRecord),
           formattedID: storyRecord.data.FormattedID,
           storyName: storyRecord.data.Name,
-          image_URL: Rally.environment.getServer().getContextUrl() + '/profile/viewThumbnailImage.sp?tSize=40&uid=' + blockedRevision.data.User.ObjectID,
-          blockedTime: blockedRevision.data._CreatedAt,
-          userName: blockedRevision.data.User._refObjectName,
-          user_URL: Rally.nav.Manager.getDetailUrl(blockedRevision.data.User._ref),
+          image_URL: Rally.environment.getServer().getContextUrl() + '/profile/viewThumbnailImage.sp?tSize=40&uid=' + storyRecord.data.Blocker.BlockedBy.ObjectID,
+          blockedTime: storyRecord.data.Blocker._CreatedAt,
+          userName: storyRecord.data.Blocker.BlockedBy._refObjectName,
+          user_URL: Rally.nav.Manager.getDetailUrl(storyRecord.data.Blocker.BlockedBy._ref),
           blockedReason: storyRecord.data.BlockedReason !== "" ? "Reason: " + storyRecord.data.BlockedReason : "",
           DirectChildrenCount: storyRecord.data.DirectChildrenCount
         }
       });
+      this.removeAll(); // clear the panel
       return this.add(storyPanel);
     }
   });

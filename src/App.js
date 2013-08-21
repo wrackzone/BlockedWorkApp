@@ -3,9 +3,26 @@
     extend: 'Rally.app.App',
     componentCls: 'app',
     launch: function() {
-      return this.getBlockedStories();
+        var timeboxScope = this.getContext().getTimeboxScope();
+        if(timeboxScope) {
+            var record = timeboxScope.getRecord();
+            var name = record.get('Name');
+            console.log("timebox",record);
+            return this.getBlockedStories(record);
+        } else {
+            return this.getBlockedStories();
+        }
     },
-    getBlockedStories: function() {
+    onTimeboxScopeChange: function(newTimeboxScope) {
+        this.callParent(arguments);
+        
+        if(newTimeboxScope) {
+            var record = newTimeboxScope.getRecord();
+            return this.getBlockedStories(record);
+        }
+    },
+    getBlockedStories: function(iteration) {
+        console.log('iteration',iteration);
       var storyStore;
       return storyStore = Ext.create('Rally.data.WsapiDataStore', {
         autoLoad: true,
@@ -20,7 +37,9 @@
             property: 'DirectChildrenCount',
             operator: '=',
             value: 0
-          }
+          }, ( !_.isUndefined(iteration) && !_.isNull(iteration) ? 
+            { property : 'Iteration.Name', operator: '=', value : iteration.get("Name") } : {}
+        )
         ],
         listeners: {
           load: function(store, storyRecords) {
@@ -76,6 +95,7 @@
           DirectChildrenCount: storyRecord.data.DirectChildrenCount
         }
       });
+      this.removeAll(); // clear the panel
       return this.add(storyPanel);
     }
   });
