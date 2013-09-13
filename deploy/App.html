@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BlockedApp</title>
+<title>BlockedApp</title>
+<meta name="Name" content="BlockedWorkApp" />
+<meta name="Version" content="2013.9.12" />
+<meta name="Vendor" content="Rally Software" />
+<script type="text/javascript" src="/apps/2.0rc1/sdk.js"></script>
 
-    <script type="text/javascript" src="/apps/2.0rc1/sdk.js"></script>
-
-
-
-    <script type="text/javascript">
+<script type="text/javascript">
         Rally.onReady(function () {
 (function() {
   Ext.define('CustomApp', {
@@ -73,6 +73,7 @@
               }
             };
             storyRecords.sort(sortFn);
+            this.removeAll(); // clear the panel
             return _.each(storyRecords, function(storyRecord) {
               return this._addStoryPanel(storyRecord);
             }, this);
@@ -106,7 +107,7 @@
           DirectChildrenCount: storyRecord.data.DirectChildrenCount
         }
       });
-      this.removeAll(); // clear the panel
+      //this.removeAll(); // clear the panel
       return this.add(storyPanel);
     }
   });

@@ -62,6 +62,7 @@
               }
             };
             storyRecords.sort(sortFn);
+            this.removeAll(); // clear the panel
             return _.each(storyRecords, function(storyRecord) {
               return this._addStoryPanel(storyRecord);
             }, this);
@@ -95,7 +96,7 @@
           DirectChildrenCount: storyRecord.data.DirectChildrenCount
         }
       });
-      this.removeAll(); // clear the panel
+      //this.removeAll(); // clear the panel
       return this.add(storyPanel);
     }
   });
